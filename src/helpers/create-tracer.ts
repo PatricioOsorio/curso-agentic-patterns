@@ -65,21 +65,19 @@ export function createTracer(rawLabel: string, options: TracerOptions = {}) {
     stepStarted = true;
     const stepNumber = event.stepNumber + 1;
     console.log(
-      `\n  ┌─ [${cleanLabel.blue}] ${`step ${stepNumber}`.yellow} · ${'calling model...'.purple}`,
+      `\n  ┌─ [${cleanLabel.blue}] ${`step ${stepNumber}`.yellow} · ${'calling model...'.purple}`
     );
   };
 
   const onToolExecutionStart = (event: ToolExecutionStartEvent) => {
     console.log(
-      `  │  ${'⚡ TOOL RUN'.yellow} → ${event.toolCall.toolName.blue}(${formatData(event.toolCall.input)})`,
+      `  │  ${'⚡ TOOL RUN'.yellow} → ${event.toolCall.toolName.blue}(${formatData(event.toolCall.input)})`
     );
   };
 
   const onToolExecutionEnd = (event: ToolExecutionEndEvent) => {
-    const duration = `${event.toolExecutionMs}ms`.yellow;
-    console.log(
-      `  │  ${'⚡ TOOL DONE'.green}← ${event.toolCall.toolName.blue} · ${duration}`,
-    );
+    const duration = `${event.toolExecutionMs.toFixed(2)}ms`.yellow;
+    console.log(`  │  ${'⚡ TOOL DONE'.green}← ${event.toolCall.toolName.blue} · ${duration}`);
   };
 
   const onStepEnd = (event: GenerateTextStepEndEvent) => {
@@ -96,32 +94,24 @@ export function createTracer(rawLabel: string, options: TracerOptions = {}) {
 
     // If onStepStart wasn't wired by caller, print the step header here
     if (!stepStarted) {
-      console.log(
-        `\n  ┌─ [${cleanLabel.blue}] ${`step ${event.stepNumber + 1}`.yellow}`,
-      );
+      console.log(`\n  ┌─ [${cleanLabel.blue}] ${`step ${event.stepNumber + 1}`.yellow}`);
     }
     stepStarted = false;
 
     console.log(
-      `  │  ${'METRICS'.purple}   → ${`${tokens} tokens`.purple} (in: ${inputTokens}, out: ${outputTokens}) · finish: ${event.finishReason.yellow}`,
+      `  │  ${'METRICS'.purple}   → ${`${tokens} tokens`.purple} (in: ${inputTokens}, out: ${outputTokens}) · finish: ${event.finishReason.yellow}`
     );
 
     if (event.reasoningText?.trim()) {
-      console.log(
-        `  │  ${'THINKING'.yellow}  → ${formatText(event.reasoningText)}`,
-      );
+      console.log(`  │  ${'THINKING'.yellow}  → ${formatText(event.reasoningText)}`);
     }
 
     for (const call of event.toolCalls) {
-      console.log(
-        `  │  ${'TOOL CALL'.blue} → ${call.toolName.blue}(${formatData(call.input)})`,
-      );
+      console.log(`  │  ${'TOOL CALL'.blue} → ${call.toolName.blue}(${formatData(call.input)})`);
     }
 
     for (const result of event.toolResults) {
-      console.log(
-        `  │  ${'TOOL RESULT'.green}← ${formatData(result.output)}`,
-      );
+      console.log(`  │  ${'TOOL RESULT'.green}← ${formatData(result.output)}`);
     }
 
     if (event.text?.trim()) {
