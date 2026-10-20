@@ -114,6 +114,30 @@ const findCourses = tool({
   },
 });
 
+const calculateTotal = tool({
+  description: `Calcula el total de horas y el precio total de un conjunto de cursos, aplicando descuentos si es necesario. Utiliza esta herramienta siempre para las operaciones aritmeticas con cursos, horas y precios.`,
+  inputSchema: z.object({
+    ids: z.array(z.string()).describe('IDs de los cursos'),
+    discountPercent: z.number().min(0).max(100).default(0),
+  }),
+  execute: async ({ ids, discountPercent }) => {
+    const courses = COURSE_CATALOG.filter((c) => ids.includes(c.id));
+
+    const isNotFound = ids.filter((id) => !COURSE_CATALOG.some((c) => c.id === id));
+
+    const subtotal = courses.reduce((acc, c) => acc + c.priceUSD, 0);
+
+    const discount = subtotal * (discountPercent / 100);
+
+    return {
+      subtotal: Number(subtotal.toFixed(2)),
+      discount: Number(discount.toFixed(2)),
+      total: Number((subtotal - discount).toFixed(2)),
+      isNotFound,
+    };
+  },
+});
+
 // ! with tools
 async function withTools() {
   const tracer = createTracer('withTools');
@@ -122,6 +146,7 @@ async function withTools() {
     prompt: QUESTION,
     tools: {
       findCourses,
+      calculateTotal,
     },
     stopWhen: stepCountIs(6), // circuit breaker
     instructions: `Eres un asistente de la plataforma de cursos Devtalles, no inventes precios, cursos, horas ni niveles. Si no sabes la respuesta, di que no lo sabes.`,
@@ -136,12 +161,12 @@ async function withTools() {
 }
 
 export async function toolUseMain() {
-  const withoutToolsResult = await withoutTools();
+  // const withoutToolsResult = await withoutTools();
   const withToolsResult = await withTools();
 
   log.title('Comparativa');
   console.table({
-    'sin herramientas': withoutToolsResult,
+    // 'sin herramientas': withoutToolsResult,
     'con herramientas': withToolsResult,
   });
 }
