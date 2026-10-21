@@ -17,6 +17,7 @@ import { generateText, Output } from 'ai';
 import { z } from 'zod';
 
 import { createTracer, log, model } from '../../helpers/index.js';
+import { getSkillInstructions } from '../../tools/skills.js';
 
 // ---------------------------------------------------------------------------
 // LOS DATOS — el escenario
@@ -194,20 +195,88 @@ async function withoutPlanning() {
 // ---------------------------------------------------------------------------
 // B) CON PLANIFICACIÓN — primero el plan, luego la ejecución
 // ---------------------------------------------------------------------------
-// TODO:
+const stepSchema = z.object({
+  goal: z.string().describe('Qué resuelve este paso, en una frase'),
+  reason: z.string().describe('Por qué es necesario este paso, y por qué está en este orden'),
+});
+
+const planSchema = z.object({
+  steps: z
+    .array(stepSchema)
+    .min(2)
+    .max(10)
+    .describe(
+      'Lista de pasos ordenados para resolver la misión, donde cada paso resuelve una sola cosa y depende del anterior'
+    ),
+});
+
+async function buildPlan(tracer: ReturnType<typeof createTracer>) {
+  const cavemanSkill = getSkillInstructions('caveman');
+
+  const { output } = await generateText({
+    model,
+    output: Output.object({
+      schema: planSchema,
+    }),
+    prompt: MISSION,
+    instructions: [
+      'Eres un experto en planificación de operaciones. No hagas las acciones aún. Cada operacion debe ser un paso ordenado, donde cada paso dependa del anterior.',
+      cavemanSkill,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    ...tracer,
+  });
+
+  return output.steps;
+}
+
+async function withPlanning() {
+  log.title('B) CON PLANIFICACIÓN');
+
+  const tracer = createTracer('withPlanning');
+
+  // 1) Generar el plan
+  const steps = await buildPlan(tracer);
+
+  // 2) Ejecutar paso a paso
+  const findings: string[] = [];
+
+  for (const [index, step] of steps.entries()) {
+    log.info(`Paso ${index + 1}: ${step.goal}`.red);
+
+    const { text } = await generateText({
+      model,
+      instructions: `Resuelve solo el paso indicado y no hagas nada más.`,
+      prompt:
+        `<mision-origial>${MISSION}</mision-origial>` +
+        `<paso-actual>${step.goal}</paso-actual>` +
+        `<razon>${step.reason}</razon>` +
+        `<hallazgos-previos>${findings.join('\n')}</hallazgos-previos>`,
+      ...tracer,
+    });
+
+    findings.push(`[${step.goal}]  \n ${text.trim()}`);
+  }
+
+  log.info('Hallazgos finales: ', findings.join('\n').green);
+  // 3) Sintetizar todos los pasos
+
+  return tracer.summary();
+}
 
 // ---------------------------------------------------------------------------
 // MAIN
 // ---------------------------------------------------------------------------
 // TODO:
 export async function planningMain() {
-  const withoutPlanningResponse = await withoutPlanning();
-  // const b = await withPlanning();
+  // const withoutPlanningResponse = await withoutPlanning();
+  const withPlanningResponse = await withPlanning();
 
   console.log('\n═══ COMPARATIVA ═══\n'.blue);
   console.table({
-    'Sin planificación': withoutPlanningResponse,
-    // 'Con planificación': b,
+    // 'Sin planificación': withoutPlanningResponse,
+    'Con planificación': withPlanningResponse,
   });
 
   console.log(
