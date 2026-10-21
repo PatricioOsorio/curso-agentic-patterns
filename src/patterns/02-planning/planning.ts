@@ -263,14 +263,15 @@ async function withPlanning() {
   // 3) Sintetizar todos los pasos
   const { text: finalPlan } = await generateText({
     model,
-    instructions: `Integra los resultados parciales en un plan final. No repitas los pasos, solo sintetiza los hallazgos.`,
-    prompt: [
-      `<mision-original>${MISSION}</mision-original>`,
-      `<hallazgos>${findings.join('\n')}</hallazgos>`,
+    instructions: [
+      `Integra los resultados parciales en un plan final. No repitas los pasos, solo sintetiza los hallazgos.`,
       cavemanSkill,
     ]
       .filter(Boolean)
-      .join('\n'),
+      .join('\n\n'),
+    prompt:
+      `<mision-original>${MISSION}</mision-original>` +
+      `<hallazgos>${findings.join('\n')}</hallazgos>`,
     ...tracer,
   });
 
