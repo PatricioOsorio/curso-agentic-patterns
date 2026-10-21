@@ -235,6 +235,7 @@ async function withPlanning() {
   log.title('B) CON PLANIFICACIÓN');
 
   const tracer = createTracer('withPlanning');
+  const cavemanSkill = getSkillInstructions('caveman');
 
   // 1) Generar el plan
   const steps = await buildPlan(tracer);
@@ -249,7 +250,7 @@ async function withPlanning() {
       model,
       instructions: `Resuelve solo el paso indicado y no hagas nada más.`,
       prompt:
-        `<mision-origial>${MISSION}</mision-origial>` +
+        `<mision-original>${MISSION}</mision-original>` +
         `<paso-actual>${step.goal}</paso-actual>` +
         `<razon>${step.reason}</razon>` +
         `<hallazgos-previos>${findings.join('\n')}</hallazgos-previos>`,
@@ -259,8 +260,21 @@ async function withPlanning() {
     findings.push(`[${step.goal}]  \n ${text.trim()}`);
   }
 
-  log.info('Hallazgos finales: ', findings.join('\n').green);
   // 3) Sintetizar todos los pasos
+  const { text: finalPlan } = await generateText({
+    model,
+    instructions: `Integra los resultados parciales en un plan final. No repitas los pasos, solo sintetiza los hallazgos.`,
+    prompt: [
+      `<mision-original>${MISSION}</mision-original>`,
+      `<hallazgos>${findings.join('\n')}</hallazgos>`,
+      cavemanSkill,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    ...tracer,
+  });
+
+  log.info('Plan final', finalPlan.green);
 
   return tracer.summary();
 }
