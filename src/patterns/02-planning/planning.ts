@@ -16,8 +16,7 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 
-import { createTracer, log, model } from '../../helpers/index.js';
-import { getSkillInstructions } from '../../tools/skills.js';
+import { createTracer, getSkillInstructions, log, model } from '../../helpers/index.js';
 
 // ---------------------------------------------------------------------------
 // LOS DATOS — el escenario

@@ -17,8 +17,7 @@
 import { generateText, Output } from 'ai';
 import { z } from 'zod';
 
-import { createTracer, log, model, xmlTag } from '../../helpers/index.js';
-import { getSkillInstructions } from '../../tools/skills.js';
+import { createTracer, log, model, withSkills, xmlTag } from '../../helpers/index.js';
 
 // ---------------------------------------------------------------------------
 // LA TAREA
@@ -49,9 +48,10 @@ const REQUIREMENTS = [
   'No respondas en markdown',
 ];
 
+// Tarea base sin slash commands (para el flujo autónomo por defecto)
 const TASK =
-  'Redacta un briefing operativo para el equipo de captura, de máximo ' +
-  '120 palabras.\n\n' +
+  'Redacta un briefing operativo para el equipo de captura, de máximo 120 palabras.\n' +
+  'Sé sumamente directo, conciso y sin formalismos ni rodeos innecesarios.\n\n' +
   'REQUISITOS OBLIGATORIOS:\n' +
   REQUIREMENTS.map((requirement, i) => `  ${i + 1}. ${requirement}`).join('\n') +
   '\n\n' +
@@ -104,14 +104,12 @@ function printAudit(checks: Check[]) {
 // ---------------------------------------------------------------------------
 
 async function withoutReflection() {
-  log.title('A) Sin reflexión');
+  log.title('A) Sin reflexión (Skills autónomas por defecto)');
   const tracer = createTracer('sin-reflexión');
-  const skillCaveman = getSkillInstructions('caveman');
 
   const { text } = await generateText({
     model,
-    instructions: [skillCaveman].filter(Boolean).join('\n\n'),
-    prompt: TASK,
+    ...withSkills(TASK, 'Eres un redactor táctico de briefings de seguridad.'),
     ...tracer.callbacks,
   });
 
@@ -134,28 +132,23 @@ const naiveReflectionSchema = z.object({
 });
 
 async function naiveReflection() {
-  log.title('B) Reflexión ingenua (sin criterios)');
+  log.title('B) Reflexión ingenua (Skills autónomas por defecto)');
   const tracer = createTracer('naive-reflection');
-  const skillCaveman = getSkillInstructions('caveman');
 
   const { text: draft } = await generateText({
     model,
-    prompt: [TASK, skillCaveman].filter(Boolean).join('\n\n'),
+    ...withSkills(TASK, 'Eres un redactor táctico de briefings de seguridad.'),
     ...tracer.callbacks,
   });
 
-  // autoevaluacion
+  // autoevaluacion (sin skill de redacción para no sesgar la evaluación estructurada)
   const { output: feedback } = await generateText({
     model,
     output: Output.object({
       schema: naiveReflectionSchema,
     }),
-    instructions: [
+    instructions:
       'Eres un revisor de textos. Evalúa el briefing operativo incluido en <draft> y responde con un breve feedback:',
-      skillCaveman,
-    ]
-      .filter(Boolean)
-      .join('\n\n'),
     prompt: xmlTag('draft', draft),
 
     ...tracer.callbacks,
@@ -199,17 +192,16 @@ const criteriaSchema = z.object({
 const MAX_ITERATIONS = 3;
 
 async function reflectionWithRubric() {
-  log.title('C) Reflexión con rúbrica');
+  log.title('C) Reflexión con rúbrica (Skill forzada con /caveman)');
   const tracer = createTracer('con-rúbrica-reflexión');
-  const skillCaveman = getSkillInstructions('caveman');
 
   let draft = '';
   let iteration = 0;
 
+  // Inyección forzada directa mediante /caveman
   const { text: firstDraft } = await generateText({
     model,
-    instructions: [skillCaveman].filter(Boolean).join('\n\n'),
-    prompt: TASK,
+    ...withSkills(`/caveman ${TASK}`, 'Eres un redactor táctico de briefings de seguridad.'),
     ...tracer.callbacks,
   });
 
@@ -250,16 +242,17 @@ async function reflectionWithRubric() {
     log.warn(`Requisitos pendientes (${missing.length})`);
     missing.forEach((r) => log.warn('Falta', r));
 
-    // reescritura en caso de problemas
+    // Reescritura conservando la skill forzada de /caveman
     const { text: newDraft } = await generateText({
       model,
-      instructions: [
-        'Reescribe el briefing de <original-briefing> corrigiendo únicamente las deficiencias señaladas en <missing-requirements>. Utiliza los datos de <context>. Conserva lo que ya funcionaba.',
-        'La última línea debe ser exactamente "RIESGO: [descripción]" sin asteriscos ni negritas.',
-        skillCaveman,
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
+      ...withSkills(
+        '/caveman Reescribe el briefing corrigiendo las deficiencias.',
+        [
+          'Eres un redactor táctico de briefings de seguridad.',
+          'Reescribe el briefing de <original-briefing> corrigiendo únicamente las deficiencias señaladas en <missing-requirements>. Utiliza los datos de <context>. Conserva lo que ya funcionaba.',
+          'La última línea debe ser exactamente "RIESGO: [descripción]" sin asteriscos ni negritas.',
+        ].join('\n\n')
+      ),
       prompt: [
         xmlTag('original-briefing', draft),
         xmlTag(
