@@ -132,29 +132,71 @@ export const readSkillTool = tool({
   },
 });
 
+export interface WithSkillsOptions {
+  prompt?: string;
+  instructions?: string;
+  skill?: string;
+  tools?: ToolSet;
+}
+
+export interface SkillContextWithPrompt {
+  prompt: string;
+  instructions: string;
+  tools: ToolSet;
+  stopWhen?: ReturnType<typeof stepCountIs>;
+}
+
+export interface SkillContextWithoutPrompt {
+  instructions: string;
+  tools: ToolSet;
+  stopWhen?: ReturnType<typeof stepCountIs>;
+}
+
 /**
  * Configures skill context for generateText in a single spread:
- * - If the prompt includes a slash command (/caveman), injects that skill directly.
- * - Otherwise, provides the skills index and readSkillTool by default.
+ * - If skill is explicitly provided, injects it directly.
+ * - If prompt includes a slash command (/caveman), extracts and injects that skill.
+ * - Otherwise, provides the skills index and readSkillTool for autonomous progressive disclosure.
  */
-export function withSkills(input: string, baseInstructions = '') {
-  const { isCommand, skillName, skillContent, prompt } = resolveSkillPrompt(input);
+export function withSkills(
+  input: string,
+  legacyInstructions?: string
+): SkillContextWithPrompt;
+export function withSkills(
+  options: WithSkillsOptions & { prompt: string }
+): SkillContextWithPrompt;
+export function withSkills(
+  options: WithSkillsOptions
+): SkillContextWithoutPrompt;
+export function withSkills(
+  optionsOrInput: string | WithSkillsOptions,
+  legacyInstructions = ''
+): SkillContextWithPrompt | SkillContextWithoutPrompt {
+  const opts: WithSkillsOptions =
+    typeof optionsOrInput === 'string'
+      ? { prompt: optionsOrInput, instructions: legacyInstructions }
+      : optionsOrInput;
 
-  if (isCommand && skillContent) {
-    return {
-      prompt,
-      instructions: [
-        baseInstructions,
-        xmlTag('skill', skillContent, { name: skillName! }),
-      ]
+  const baseInstructions = opts.instructions || '';
+  const baseTools = opts.tools || {};
+  const resolved = opts.prompt ? resolveSkillPrompt(opts.prompt) : null;
+  const targetSkill = opts.skill || (resolved?.isCommand ? resolved.skillName : null);
+  const prompt = resolved ? resolved.prompt : opts.prompt;
+
+  if (targetSkill) {
+    const skillContent = getSkillInstructions(targetSkill);
+    const result: SkillContextWithoutPrompt = {
+      instructions: [baseInstructions, xmlTag('skill', skillContent, { name: targetSkill })]
         .filter(Boolean)
         .join('\n\n'),
-      tools: {} as ToolSet,
+      tools: baseTools,
     };
+    return prompt !== undefined
+      ? ({ ...result, prompt } as SkillContextWithPrompt)
+      : result;
   }
 
-  return {
-    prompt,
+  const autonomousResult: SkillContextWithoutPrompt = {
     instructions: [
       baseInstructions,
       'Tienes habilidades especializadas disponibles. Si la tarea coincide con alguna de ellas, consúltala con readSkillTool antes de responder:',
@@ -162,7 +204,11 @@ export function withSkills(input: string, baseInstructions = '') {
     ]
       .filter(Boolean)
       .join('\n\n'),
-    tools: { readSkillTool } as ToolSet,
+    tools: { ...baseTools, readSkillTool } as ToolSet,
     stopWhen: stepCountIs(4),
   };
+
+  return prompt !== undefined
+    ? ({ ...autonomousResult, prompt } as SkillContextWithPrompt)
+    : autonomousResult;
 }

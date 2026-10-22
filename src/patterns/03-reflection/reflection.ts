@@ -242,18 +242,19 @@ async function reflectionWithRubric() {
     log.warn(`Requisitos pendientes (${missing.length})`);
     missing.forEach((r) => log.warn('Falta', r));
 
-    // Reescritura conservando la skill forzada de /caveman
+    // Reescritura conservando la skill forzada de caveman
     const { text: newDraft } = await generateText({
       model,
-      ...withSkills(
-        '/caveman Reescribe el briefing corrigiendo las deficiencias.',
-        [
+      ...withSkills({
+        skill: 'caveman',
+        instructions: [
           'Eres un redactor táctico de briefings de seguridad.',
           'Reescribe el briefing de <original-briefing> corrigiendo únicamente las deficiencias señaladas en <missing-requirements>. Utiliza los datos de <context>. Conserva lo que ya funcionaba.',
           'La última línea debe ser exactamente "RIESGO: [descripción]" sin asteriscos ni negritas.',
-        ].join('\n\n')
-      ),
+        ].join('\n\n'),
+      }),
       prompt: [
+        'Reescribe el briefing corrigiendo las deficiencias:',
         xmlTag('original-briefing', draft),
         xmlTag(
           'missing-requirements',
