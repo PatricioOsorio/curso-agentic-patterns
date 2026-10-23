@@ -31,6 +31,7 @@ import { ollama } from 'ollama-ai-provider-v2';
 
 // Anthropic:
 export const model = anthropic('claude-haiku-4-5-20251001');
+// export const model = anthropic('claude-fable-5-1');
 
 // OpenAI:
 // export const model = openai('gpt-5-mini');
